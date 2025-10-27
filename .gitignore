@@ -1,0 +1,27 @@
+# Ignore Python cache & temporary files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore virtual environments
+venv/
+.env/
+
+# Ignore Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Ignore system files
+.DS_Store
+
+# Ignore data you don't want public
+data/raw/
+data/processed/temp_*
+
+# Ignore model artifacts (if any)
+*.sav
+*.pkl
+
+# Ignore log and output files
+logs/
+outputs/
