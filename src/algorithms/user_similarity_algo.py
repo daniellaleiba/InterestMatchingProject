@@ -1,5 +1,5 @@
 """
-user_based_recommender.py
+user_similarity_algo.py
 =========================
 
 User-Based Collaborative Filtering Recommendation Algorithm
@@ -85,11 +85,9 @@ def predict_user_ratings(train_df, neighbors_dict, sim_df, method="pearson"):
     for user in train_df.index:
         neighbors = list(neighbors_dict.get(user, {}).keys())
         sims = np.array(list(neighbors_dict.get(user, {}).values()))
-
         # if no neighbors at all - > move to next
         if len(neighbors) == 0:
             continue
-
         # get neighbors ranking
         neighbor_ratings = train_df.loc[neighbors]
 
@@ -101,9 +99,7 @@ def predict_user_ratings(train_df, neighbors_dict, sim_df, method="pearson"):
 
         # Pearson
         elif method == "pearson":
-            # Calculating averages of neighbors
             neighbor_means = neighbor_ratings.mean(axis=1)
-            # Calculating deviation from the mean for each neighbor  (r_vi - mean_v)
             diff_from_mean = neighbor_ratings.sub(neighbor_means, axis=0)
             #Calculating a weighted sum based on similarity values: Σ(sim(u,v) * (r_vi - mean_v))
             weighted_sum = np.nansum(diff_from_mean.mul(sims, axis=0), axis=0)
@@ -118,7 +114,7 @@ def predict_user_ratings(train_df, neighbors_dict, sim_df, method="pearson"):
     return predictions
 
 
-def generate_recommendations_from_predictions(predictions, train_df, top_k=5):
+def generate_recommendations(predictions, train_df, top_k=5):
     """
     Convert predicted rating matrix into ranked hobby recommendations for each user.
     """
@@ -165,8 +161,8 @@ def us_cf_pipeline(df,top_k, rating_threshold, missing_ratio):
     predicted_ratings_cosine = predict_user_ratings(train_data, neighbors_dict_cosine, sim_cosine, method="cosine")
 
     # Step 6: Generate recommendations
-    recommendations_pearson = generate_recommendations_from_predictions(predicted_ratings_pearson, train_data, top_k=10) 
-    recommendations_cosine = generate_recommendations_from_predictions(predicted_ratings_cosine, train_data, top_k=10) 
+    recommendations_pearson = generate_recommendations(predicted_ratings_pearson, train_data, top_k=10) 
+    recommendations_cosine = generate_recommendations(predicted_ratings_cosine, train_data, top_k=10) 
 
     # Step 7: Print sample users
     sample_users = select_sample_users(test_data, n_samples=10)

@@ -1,5 +1,5 @@
 """
-popularity_recommender.py
+popularity_based.py
 =========================
 
 Popularity-Based (Cluster-Aware) Recommendation Algorithm
@@ -62,28 +62,25 @@ def compute_hobby_popularity(train_data, hobby_cols, rating_threshold=4,alpha=5)
 
     return smoothed_popularity 
 
-def popularity_method_clustered( user_row, corr_matrix, clustered_features, rating_threshold=4, popularity_series=None ):
+
+def popularity_method_clustered(user_row, corr_matrix, clustered_features, rating_threshold=4, popularity_series=None):
     """
     Generate hobby recommendations using a hybrid, cluster-aware popularity model.
 
-    This method combines three key signals:
-    - **Item-item correlation**: measures similarity between hobbies.
-    - **Global popularity**: fraction of users rating each hobby above the threshold.
-    - **Cluster boost**: reinforces hobbies belonging to popular clusters.
+    Combines three signals:
+    - **Base similarity**: measures how related each hobby is to the user’s liked ones.
+    - **Cluster context**: dynamically boosts hobbies from clusters the user tends to favor.
+    - **Global popularity**: ensures stable relevance to broader user trends.
 
-    Each user’s preferred hobbies (ratings ≥ threshold) guide the recommendation
-    through correlation averaging, while global and cluster-level popularity adjust
-    the final ranking to balance personalization and global trends.
+    Final scoring blends contextual relevance (similarity + cluster effects)
+    with global popularity for a balanced recommendation.
 
-    Logic:
-        1. Compute mean correlation between user’s liked hobbies and all others.
-        2. Normalize correlation and popularity scores to [0, 1].
-        3. Compute cluster-level popularity and a dynamic boost:
-               cluster_boost = (cluster_popularity / mean_cluster_popularity) ^ 1.2
-               (bounded between 0.9 and 1.6)
-        4. Apply the boost to the correlation values.
-        5. Blend correlation and popularity:
-               final_score = 0.65 * correlation + 0.35 * popularity
+    Steps:
+        1. Compute base similarity (average correlation with liked hobbies).
+        2. Normalize similarity and popularity scores to [0, 1].
+        3. Compute cluster-level popularity and a dynamic boost.
+        4. Apply cluster boost to similarity to obtain contextual relevance.
+        5. Blend contextual relevance and popularity into the final score.
         6. Sort and return top-10 hobbies not already liked by the user.
     """
 
@@ -94,34 +91,39 @@ def popularity_method_clustered( user_row, corr_matrix, clustered_features, rati
     cluster_map = clustered_features.set_index("Interest")["Cluster"].to_dict()
     cluster_ids = sorted(clustered_features["Cluster"].unique())
 
-    #  Step 1: Base correlation score
-    avg_corr = corr_matrix[liked_hobbies].mean(axis=1).fillna(0)
+    # Step 1: Base similarity (average correlation with liked hobbies)
+    base_similarity = corr_matrix[liked_hobbies].mean(axis=1).fillna(0)
 
-    #  Step 2: Hobby popularity (scaled 0–1)
-    hobby_popularity = popularity_series.reindex(avg_corr.index).fillna(0)
-    hobby_popularity = (hobby_popularity - hobby_popularity.min()) / (hobby_popularity.max() - hobby_popularity.min() + 1e-6)
+    # Step 2: Global hobby popularity (scaled 0–1)
+    hobby_popularity = popularity_series.reindex(base_similarity.index).fillna(0)
+    hobby_popularity = (hobby_popularity - hobby_popularity.min()) / (
+        hobby_popularity.max() - hobby_popularity.min() + 1e-6
+    )
 
-    #  Step 3: Cluster popularity (mean popularity per cluster)
+    # Step 3: Cluster popularity (mean popularity per cluster)
     cluster_popularity = pd.Series({
         c: hobby_popularity[[h for h, cl in cluster_map.items() if cl == c]].mean()
         for c in cluster_ids
-    })
+    }).fillna(0)
     cluster_popularity = cluster_popularity.fillna(cluster_popularity.mean())
 
-    #  Step 4: Dynamic cluster boost (stronger impact)
+    # Step 4: Dynamic cluster boost
     cluster_boost_factors = (cluster_popularity / cluster_popularity.mean()) ** 1.2
     cluster_boost_factors = cluster_boost_factors.clip(lower=0.9, upper=1.6)
 
-    boosted_corr = avg_corr.copy()
-    for hobby in boosted_corr.index:
+    # Apply cluster boost to obtain contextual relevance
+    contextual_relevance = base_similarity.copy()
+    for hobby in contextual_relevance.index:
         cluster_id = cluster_map[hobby]
-        boosted_corr[hobby] *= cluster_boost_factors[cluster_id]
+        contextual_relevance[hobby] *= cluster_boost_factors[cluster_id]
 
-    #  Step 5: Final combination (normalized)
-    corr_scaled = (boosted_corr - boosted_corr.min()) / (boosted_corr.max() - boosted_corr.min() + 1e-6)
-    final_score = 0.65 * corr_scaled + 0.35 * hobby_popularity
+    # Step 5: Normalize contextual relevance and compute final score
+    contextual_scaled = (contextual_relevance - contextual_relevance.min()) / (
+        contextual_relevance.max() - contextual_relevance.min() + 1e-6
+    )
+    final_score = 0.65 * contextual_scaled + 0.35 * hobby_popularity
 
-    #  Step 6: Sort and filter liked hobbies
+    # Step 6: Filter out liked hobbies and rank
     recommended = final_score.sort_values(ascending=False).index.tolist()
     recommended = [r for r in recommended if r not in liked_hobbies]
     recommended_clusters = [cluster_map[r] for r in recommended]
@@ -164,13 +166,16 @@ def run_popularity_pipeline(train_data, test_data, hobby_cols, clustered_feature
     print(f"\n~~~ Popularity-Based (Clustered) Recommendations (Example Users) ~~~")
     sample_users = select_sample_users(test_data, n_samples=10)
     for user_id in sample_users:
-        preferred = {h: int(test_data.loc[user_id, h])
-                     for h in hobby_cols
-                     if test_data.loc[user_id, h] >= rating_threshold}
+        preferred = [
+            f"{h} (C{clustered_features.loc[clustered_features['Interest'] == h, 'Cluster'].values[0]})"
+            for h in hobby_cols
+            if test_data.loc[user_id, h] >= rating_threshold
+        ]
         recs = recommendations_dict[user_id][:top_k]
         rec_clusters = list(dict.fromkeys(recommendation_clusters_dict[user_id][:top_k]))
+
         print(f"User {user_id}")
-        print(f"Preferred hobbies: {preferred}")
+        print(f"Preferred hobbies (with clusters): {preferred}")
         print(f"Recommended: {recs}")
         print(f"Recommended clusters: {rec_clusters}")
         print("------")

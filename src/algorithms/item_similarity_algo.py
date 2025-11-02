@@ -1,5 +1,5 @@
 """
-item_based_recommender.py
+item_similarity_algo.py
 =========================
 
 Item-Based Similarity Recommendation Algorithm

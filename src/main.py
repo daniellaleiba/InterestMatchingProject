@@ -63,7 +63,7 @@ def main():
     clustered_features_EDA, cluster_corr_EDA, graph_EDA = run_feature_engineering(df_clean)
 
     # STEP 3: EXPLORATORY DATA ANALYSIS
-    #run_eda_pipeline(df_clean, graph_EDA, clustered_features_EDA)
+    run_eda_pipeline(df_clean, graph_EDA, clustered_features_EDA)
 
     # STEP 4: TRAIN/TEST SPLIT
     print("\n" + "~" * 60)

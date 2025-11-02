@@ -1,5 +1,5 @@
 """
-fof_recommender.py
+FOF_algo.py
 ==================
 
 Friends-of-Friends (FOF) Recommendation Algorithm
@@ -171,10 +171,13 @@ def run_pipeline_fof(train_data, test_data, clustered_features_train, hobby_cols
     sample_users = select_sample_users(test_data, n_samples=10)
     print("\n~~~ FOF Recommendations (Example Users) ~~~")
     for user_id in sample_users:
-        liked_with_ratings = {h: int(test_data.loc[user_id, h]) for h in hobby_cols if test_data.loc[user_id, h] >= rating_threshold}
-        recs = test_recs[user_id] 
+        preferred = [
+            h for h in hobby_cols
+            if test_data.loc[user_id, h] >= rating_threshold
+        ]
+        recs = test_recs[user_id][:top_k]
         print(f"User {user_id}")
-        print(f"Preferred hobbies: {liked_with_ratings}")
+        print(f"Preferred hobbies: {preferred}")
         print(f"Recommended: {recs}")
         print("------")
 

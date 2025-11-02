@@ -1,5 +1,5 @@
 """
-matrix_factorization_recommender.py
+matrix_factorization.py
 ===================================
 
 Matrix Factorization Recommendation Algorithm (NMF & SVD)
@@ -132,7 +132,7 @@ def run_pipeline_matrix_factorization(df_full, hobby_cols,top_k, rating_threshol
 
     # Step 5: Print example users
     print(f"\n~~~ Matrix Factorization  (NMF vs SVD)  Recommendations (Example Users) ~~~")
-    sample_users = select_sample_users(test_df, n_samples=5)
+    sample_users = select_sample_users(test_df, n_samples=10)
     for user in sample_users:
         liked = {h: int(test_df.loc[user, h]) for h in hobby_cols if test_df.loc[user, h] >= 4}
         print(f"\nUser {user}")

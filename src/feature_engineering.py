@@ -19,6 +19,7 @@ import pandas as pd
 import seaborn as sns
 import networkx as nx
 import matplotlib.pyplot as plt
+from matplotlib.colors import to_hex
 from sklearn.metrics.pairwise import cosine_similarity
 from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 from scipy.spatial.distance import squareform
@@ -44,22 +45,10 @@ def create_clusters(df, exclude_cols=None, n_clusters=6, save_figures=True, name
 
     # Compute Pearson correlation matrix
     corr = df_interest.corr(method='pearson')
-
-    # Compute distance matrix (1 - |correlation|)
     distance = 1 - corr.abs()
 
     # Perform hierarchical clustering using Ward’s method
     linkage_matrix = linkage(squareform(distance), method='ward')
-
-    # --- Visualization: Dendrogram ---
-    if save_figures:
-        plt.figure(figsize=(12, 6))
-        dendrogram(linkage_matrix, labels=corr.columns, leaf_rotation=90)
-        plt.title("Hierarchical Clustering of Interests (Pearson-based)")
-        plt.ylabel("Distance (1 - |correlation|)")
-        plt.savefig(os.path.join("assets/cluster_graphs/", f"hierarchical_clustering{name_suffix}.png"), 
-                    bbox_inches="tight", dpi=300)
-        plt.close()
 
     # Assign each hobby to a cluster
     clusters = fcluster(linkage_matrix, t=n_clusters, criterion='maxclust')
@@ -67,8 +56,28 @@ def create_clusters(df, exclude_cols=None, n_clusters=6, save_figures=True, name
         'Interest': corr.columns,
         'Cluster': clusters
     })
-
     print(f"Created {n_clusters} clusters successfully.")
+    print("\n Cluster Composition Summary:")
+    for cluster_id in sorted(clustered_features['Cluster'].unique()):
+        hobbies_in_cluster = clustered_features.loc[
+            clustered_features['Cluster'] == cluster_id, 'Interest'
+        ].tolist()
+        print(f"\nCluster {cluster_id} ({len(hobbies_in_cluster)} hobbies):")
+        print(", ".join(hobbies_in_cluster))
+
+   
+    # --- Visualization: Dendrogram ---
+    if save_figures:
+        plt.figure(figsize=(12, 6))
+        dendrogram(linkage_matrix, labels=corr.columns, leaf_rotation=90) 
+        plt.title("Hierarchical Clustering of Interests (Pearson-based)")
+        plt.ylabel("Distance (1 - |correlation|)")
+        plt.savefig(os.path.join("assets/cluster_graphs/", f"hierarchical_clustering{name_suffix}.png"), 
+                    bbox_inches="tight", dpi=300)
+        plt.close()
+
+
+
 
     # --- Compute average correlation between clusters ---
     cluster_ids = sorted(clustered_features['Cluster'].unique())
@@ -78,7 +87,12 @@ def create_clusters(df, exclude_cols=None, n_clusters=6, save_figures=True, name
         for j in cluster_ids:
             cols_i = clustered_features.loc[clustered_features['Cluster'] == i, 'Interest']
             cols_j = clustered_features.loc[clustered_features['Cluster'] == j, 'Interest']
-            avg_corr = corr.loc[cols_i, cols_j].mean().mean()
+           
+            sub_corr = corr.loc[cols_i, cols_j].copy()
+            # for same cluster case : 
+            if i == j:
+                np.fill_diagonal(sub_corr.values, np.nan)
+            avg_corr = sub_corr.mean().mean()
             cluster_corr.loc[i, j] = avg_corr
 
     # --- Visualization: Heatmap ---

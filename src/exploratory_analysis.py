@@ -87,7 +87,7 @@ def plot_categorical_distribution(df, column, mapping=None, save=True):
  
     plt.show()
 
-def plot_all_hobbies_boxplot(df, exclude_cols=None, save=True):
+def plot_all_hobbies_distribution(df, exclude_cols=None, save=True):
     """
     Boxplot for all hobbies with uniform color — clean and minimal style.
     """
@@ -108,7 +108,7 @@ def plot_all_hobbies_boxplot(df, exclude_cols=None, save=True):
         save_plot("eda_visuals", "boxplot_all_hobbies_clean.png")
     plt.show()
 
-def correlation_heatmap(df, method='spearman', exclude_cols=None):
+def correlation_heatmap(df, method='spearman', exclude_cols=None,save=True):
   #  Plot correlation heatmap between numeric columns (default: Spearman).
 
     exclude_cols = exclude_cols or ['Gender', 'Village - town']
@@ -119,10 +119,31 @@ def correlation_heatmap(df, method='spearman', exclude_cols=None):
     plt.figure(figsize=(14,10))
     sns.heatmap(corr, annot=True, fmt=".2f", cmap='coolwarm', cbar=True)
     plt.title(f'{method.capitalize()} Correlation Heatmap')
+    if save:
+        save_plot("eda_visuals", "correlation_heatmap.png")
     plt.show()
     return corr
 
-def top_correlated_pairs(df, top_n=10):
+def top_correlated_pairs(corr, top_n=10):
+    """
+    Print and return the top positively and negatively correlated hobby pairs 
+    from a given correlation matrix.
+    """
+    # Flatten matrix and remove self-correlations
+    corr_pairs = corr.unstack().drop_duplicates()
+    corr_pairs = corr_pairs[corr_pairs < 0.999]
+
+    # Sort absolute values for both high positive & negative correlations
+    top_pairs = corr_pairs.reindex(corr_pairs.abs().sort_values(ascending=False).index).head(top_n)
+
+    print("\n=== Top correlated hobby pairs (positive & negative) ===\n")
+    for pair, value in top_pairs.items():
+        relation = "Positive" if value > 0 else "Negative"
+        print(f"{pair[0]} ↔ {pair[1]} : {value:.3f} ({relation})")
+    
+    return top_pairs
+
+def top_correlated_pairs1(df, top_n=10):
     corr = df.corr(method='spearman')
     corr_pairs = (
         corr.unstack()
@@ -134,37 +155,31 @@ def top_correlated_pairs(df, top_n=10):
     print(top_pairs)
     return top_pairs
 
-def plot_top_hobbies_mean_and_count(df, top_n=12, rating_threshold=3, save=True):
-    # Shows the hobbies with the highest average rating, along with the number of users who rated them >= rating_threshold.
-    
-    mean_ratings = df.mean().rename("mean_rating")
-    count_high = (df >= rating_threshold).sum().rename(f"num_users_rating_≥{rating_threshold}")
 
-    summary = pd.concat([mean_ratings, count_high], axis=1)
-    summary = summary.sort_values("mean_rating", ascending=False).head(top_n)
-    
-    plt.figure(figsize=(10,6))
+def plot_top_hobbies(df, top_n=12, save=True):
+    """
+    Displays the top hobbies by their average user rating (1–5).
+    """
+    mean_ratings = df.mean().sort_values(ascending=False).head(top_n)
+
+    plt.figure(figsize=(10, 6))
     sns.barplot(
-        data=summary,
-        y=summary.index, x="mean_rating",
-        palette="rocket", edgecolor="black"
+        x=mean_ratings.values,
+        y=mean_ratings.index,
+        palette="rocket",
+        edgecolor="black"
     )
 
-    for i, (mean, count) in enumerate(zip(summary["mean_rating"], summary.iloc[:,1])):
-        plt.text(mean + 0.02, i, f"{int(count)} users", va='center', fontsize=9, color='dimgray')
-
-    plt.title(f"Top {top_n} Hobbies by Average Rating and Number of Users (≥{rating_threshold})", fontsize=13, weight="bold")
-    plt.xlabel("Average Rating")
+    plt.title(f"Top {top_n} Hobbies by Average User Rating", fontsize=13, weight="bold")
+    plt.xlabel("Average Rating (1–5)")
     plt.ylabel("Hobby")
     plt.xlim(0, 5)
     plt.tight_layout()
 
-    if save:
-        save_plot("eda_visuals", "top_hobbies_mean_count.png")
+    save_plot("eda_visuals", "top_hobbies_mean.png")
     plt.show()
 
-    return summary
-
+    return mean_ratings
 
 # 3. GROUP COMPARISONS (T-TESTS) 
 
@@ -194,14 +209,20 @@ def plot_mean_ratings_by_category(df, category_col, numeric_cols=None, category_
     if category_labels:
         df_plot.columns = category_labels
     
-    df_plot.plot(kind='bar', figsize=(15,6))
-    plt.title(f"Average Ratings per Feature by {category_col}")
+    # perssonlize colors for ' Gender ' only 
+    if category_col.lower() == 'gender':
+        colors = ['#FF69B4', '#1E90FF']  # pink for female, blue for male
+        df_plot.plot(kind='bar',figsize=(15,6), color=colors)
+    else:
+        df_plot.plot(kind='bar', figsize=(15,6))
+    
+    plt.title(f"Average Hobby Ratings by {category_col}")
     plt.ylabel("Average Rating (1-5)")
     plt.xticks(rotation=45, ha='right')
     plt.tight_layout()
     if save:
         save_plot("eda_visuals", f"{category_col.lower().replace(' ', '_')}_meanrating.png")
-    plt.show()
+
     plt.show()
 
 
@@ -234,13 +255,27 @@ def compute_and_plot_feature_importance_pca( df, exclude_cols=None, n_components
     # Vizualization
     top_features = feature_importance.head(top_n)
     plt.figure(figsize=(10, 6))
-    sns.barplot(
+    ax = sns.barplot(
         data=top_features,
         x='Importance',
         y='Feature',
         color="#4B8BBE",
         edgecolor="black"
     )
+    # Add white annotations inside bars
+    for i, (importance, feature) in enumerate(zip(top_features['Importance'], top_features['Feature'])):
+        ax.text(
+            importance / 2,  # halfway across bar width
+            i,               # y-position
+            f"{importance:.3f}",
+            color='white',
+            va='center',
+            ha='center',
+            fontsize=9,
+            fontweight='bold'
+        )
+
+
     plt.title(f"Top {top_n} Most Influential Hobbies (PCA-based Importance)",
                 fontsize=13, weight="bold")
     plt.xlabel("Average PCA Loading (Importance)")
@@ -342,14 +377,14 @@ def run_eda_pipeline(df, graph, clustered_features):
     plot_categorical_distribution(df, 'Village - town', mapping={0:'City', 1:'Village'})
     
     # 3. Numeric distributions 
-    plot_all_hobbies_boxplot(df)
+    plot_all_hobbies_distribution(df)
     
     # 4. Top hobbies
-    plot_top_hobbies_mean_and_count(df, top_n=12, rating_threshold=3)
+    plot_top_hobbies(df)
 
     # 5. Correlation structure
-    correlation_heatmap(df)
-    top_correlated_pairs(df)
+    corr = correlation_heatmap(df)
+    top_correlated_pairs(corr)
 
     # 6. Group comparisons (T-tests)
     t_test_categories(df, 'Gender', mapping={0:'Female',1:'Male'})

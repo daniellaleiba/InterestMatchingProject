@@ -78,9 +78,9 @@ The algorithm then combines:
 **Core process:**
 - **Smoothed global popularity** using Bayesian averaging to handle sparse data.
 - **Correlation-based personalization**, capturing how similar each hobby is to those the user already enjoys.
-- **Dynamic cluster boosts**, which emphasize hobbies belonging to popular or cohesive clusters, bounded to avoid over-amplification.
-- **Score blending:** combines correlation and popularity signals for balanced recommendations.  
-> *Final score = 0.65 × correlation + 0.35 × popularity** 
+- **Dynamic cluster boosts**, which emphasize hobbies belonging to popular or cohesive clusters, bounded to avoid over-amplification (represents contextual similarity)
+- **Score blending:** combines contextual similarity and popularity signals for balanced recommendations.  
+> *Final score = 0.65 × ContextualRelevance + 0.35 × popularity** 
 
 🔸 **Visualization Example:**  *Hierarchical clustering of hobbies*  
 
